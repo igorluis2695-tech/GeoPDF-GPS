@@ -29,7 +29,3 @@ Esta versão considera o **Viewport (/VP e /BBox)** do GeoPDF. Isso é necessár
 - Mapas continuam disponíveis offline dentro do app.
 - Abrir e excluir mapas pela biblioteca.
 - Novo layout de mapa com barra superior, zoom +/− e centralização no GPS.
-
-## Importação de vários mapas
-
-Esta versão permite selecionar e importar vários GeoPDFs de uma vez. O aplicativo mostra o progresso da importação e mantém todos os PDFs disponíveis offline em **Meus Mapas**.

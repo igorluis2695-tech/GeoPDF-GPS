@@ -36,8 +36,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private var currentMap: File? = null
     private val mapsDir by lazy { File(filesDir, "maps").apply { mkdirs() } }
 
-    private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) importMap(uri)
+    private val picker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) importMaps(uris)
     }
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         if (it) startGps()
@@ -85,7 +85,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             setTextColor(Color.rgb(95, 108, 98))
         })
         header.addView(titles, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(actionButton("+  ADICIONAR MAPA") { picker.launch(arrayOf("application/pdf")) })
+        header.addView(actionButton("+  ADICIONAR MAPAS") { picker.launch(arrayOf("application/pdf")) })
         page.addView(header)
 
         val files = mapsDir.listFiles { f -> f.isFile && f.extension.equals("pdf", true) }
@@ -111,7 +111,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 setPadding(0, dp(10), 0, dp(5))
             })
             empty.addView(TextView(this).apply {
-                text = "Toque em “Adicionar mapa” para importar seus GeoPDFs.\nEles ficarão guardados aqui para abrir quando precisar."
+                text = "Toque em “Adicionar mapas” para selecionar vários GeoPDFs de uma vez.\nEles ficarão guardados aqui para abrir quando precisar."
                 textSize = 14f
                 setTextColor(Color.rgb(100, 112, 103))
                 gravity = Gravity.CENTER
@@ -202,9 +202,46 @@ class MainActivity : AppCompatActivity(), LocationListener {
         return card
     }
 
-    private fun importMap(uri: Uri) {
+    private fun importMaps(uris: List<Uri>) {
+        val progress = android.app.ProgressDialog(this).apply {
+            setTitle("Importando mapas")
+            setProgressStyle(android.app.ProgressDialog.STYLE_HORIZONTAL)
+            max = uris.size
+            progress = 0
+            setCancelable(false)
+            setMessage("Preparando...")
+            show()
+        }
+
+        Thread {
+            var imported = 0
+            var failed = 0
+            uris.forEachIndexed { index, uri ->
+                val name = queryName(uri)?.ifBlank { "Mapa.pdf" } ?: "Mapa.pdf"
+                runOnUiThread {
+                    progress.progress = index
+                    progress.setMessage("${index + 1} de ${uris.size}: $name")
+                }
+                if (copyMapToLibrary(uri)) imported++ else failed++
+            }
+
+            runOnUiThread {
+                progress.progress = uris.size
+                progress.dismiss()
+                showLibrary()
+                val msg = when {
+                    failed == 0 -> "$imported mapas adicionados"
+                    imported == 0 -> "Não foi possível importar os mapas"
+                    else -> "$imported mapas adicionados • $failed com erro"
+                }
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            }
+        }.start()
+    }
+
+    private fun copyMapToLibrary(uri: Uri): Boolean {
         val original = queryName(uri)?.ifBlank { "Mapa.pdf" } ?: "Mapa.pdf"
-        val safeName = original.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        val safeName = original.replace(Regex("[\\/:*?\"<>|]"), "_")
         var dest = File(mapsDir, safeName)
         var n = 2
         while (dest.exists()) {
@@ -212,15 +249,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
             dest = File(mapsDir, "$base ($n).pdf")
             n++
         }
-        try {
+
+        return try {
             contentResolver.openInputStream(uri)!!.use { input ->
                 dest.outputStream().use { output -> input.copyTo(output) }
             }
-            Toast.makeText(this, "Mapa salvo no aplicativo", Toast.LENGTH_SHORT).show()
-            showLibrary()
-        } catch (e: Exception) {
+            true
+        } catch (_: Exception) {
             dest.delete()
-            Toast.makeText(this, "Não foi possível importar este PDF", Toast.LENGTH_LONG).show()
+            false
         }
     }
 
