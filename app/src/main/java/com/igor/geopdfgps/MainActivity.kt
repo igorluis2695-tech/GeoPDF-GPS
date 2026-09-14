@@ -34,10 +34,11 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private var pfd: ParcelFileDescriptor? = null
     private var renderer: PdfRenderer? = null
     private var currentMap: File? = null
+    private var currentFolder: File? = null
     private val mapsDir by lazy { File(filesDir, "maps").apply { mkdirs() } }
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) importMaps(uris)
+        if (uris.isNotEmpty()) importMaps(uris, currentFolder ?: mapsDir)
     }
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         if (it) startGps()
@@ -59,6 +60,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     private fun showLibrary() {
         currentMap = null
+        currentFolder = null
         root.removeAllViews()
         root.setBackgroundColor(Color.rgb(245, 247, 245))
 
@@ -66,215 +68,145 @@ class MainActivity : AppCompatActivity(), LocationListener {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(18), dp(18), dp(18))
         }
+        page.addView(libraryHeader("Meus Mapas", "Organize seus GeoPDFs em pastas", true))
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(6), dp(4), dp(12))
-        }
-        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titles.addView(TextView(this).apply {
-            text = "GeoPDF Maps"
-            textSize = 27f
-            setTextColor(Color.rgb(24, 54, 31))
-            setTypeface(typeface, Typeface.BOLD)
-        })
-        titles.addView(TextView(this).apply {
-            text = "Seus mapas disponíveis offline"
-            textSize = 14f
-            setTextColor(Color.rgb(95, 108, 98))
-        })
-        header.addView(titles, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(actionButton("+  ADICIONAR MAPAS") { picker.launch(arrayOf("application/pdf")) })
-        page.addView(header)
+        val folders = mapsDir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase(Locale.getDefault()) } ?: emptyList()
+        val looseMaps = mapsDir.listFiles { f -> f.isFile && f.extension.equals("pdf", true) }?.sortedBy { it.name.lowercase(Locale.getDefault()) } ?: emptyList()
 
-        val files = mapsDir.listFiles { f -> f.isFile && f.extension.equals("pdf", true) }
-            ?.sortedBy { it.name.lowercase(Locale.getDefault()) } ?: emptyList()
+        val scroll = ScrollView(this)
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(20)) }
 
-        if (files.isEmpty()) {
-            val empty = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                setPadding(dp(24), dp(70), dp(24), dp(40))
-            }
-            empty.addView(TextView(this).apply {
-                text = "🗺️"
-                textSize = 52f
-                gravity = Gravity.CENTER
-            })
-            empty.addView(TextView(this).apply {
-                text = "Nenhum mapa salvo"
-                textSize = 20f
-                setTextColor(Color.rgb(35, 55, 40))
-                setTypeface(typeface, Typeface.BOLD)
-                gravity = Gravity.CENTER
-                setPadding(0, dp(10), 0, dp(5))
-            })
-            empty.addView(TextView(this).apply {
-                text = "Toque em “Adicionar mapas” para selecionar vários GeoPDFs de uma vez.\nEles ficarão guardados aqui para abrir quando precisar."
-                textSize = 14f
-                setTextColor(Color.rgb(100, 112, 103))
-                gravity = Gravity.CENTER
-            })
-            page.addView(empty, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        if (folders.isEmpty() && looseMaps.isEmpty()) {
+            list.addView(emptyLibraryView("Nenhuma pasta criada", "Crie uma pasta e adicione vários GeoPDFs de uma vez."))
         } else {
-            page.addView(TextView(this).apply {
-                text = "MEUS MAPAS  •  ${files.size}"
-                textSize = 12f
-                setTextColor(Color.rgb(91, 110, 95))
-                setTypeface(typeface, Typeface.BOLD)
-                setPadding(dp(4), dp(10), 0, dp(10))
-            })
-
-            val scroll = ScrollView(this)
-            val list = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(0, 0, 0, dp(20))
+            if (folders.isNotEmpty()) list.addView(sectionLabel("PASTAS  •  ${folders.size}"))
+            folders.forEach { list.addView(folderCard(it)) }
+            if (looseMaps.isNotEmpty()) {
+                list.addView(sectionLabel("MAPAS SEM PASTA  •  ${looseMaps.size}"))
+                looseMaps.forEach { list.addView(mapCard(it)) }
             }
-            files.forEach { list.addView(mapCard(it)) }
-            scroll.addView(list)
-            page.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         }
-
+        scroll.addView(list)
+        page.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(page, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
     }
 
-    private fun mapCard(file: File): View {
+    private fun libraryHeader(title: String, subtitle: String, rootScreen: Boolean): View {
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), dp(6), dp(4), dp(12)) }
+        if (!rootScreen) {
+            header.addView(TextView(this).apply {
+                text = "‹"; textSize = 38f; gravity = Gravity.CENTER; setTextColor(Color.rgb(24, 54, 31)); setOnClickListener { showLibrary() }
+            }, LinearLayout.LayoutParams(dp(44), dp(52)))
+        }
+        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        titles.addView(TextView(this).apply { text = title; textSize = 25f; setTextColor(Color.rgb(24, 54, 31)); setTypeface(typeface, Typeface.BOLD); maxLines = 1 })
+        titles.addView(TextView(this).apply { text = subtitle; textSize = 13f; setTextColor(Color.rgb(95, 108, 98)) })
+        header.addView(titles, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        if (rootScreen) header.addView(actionButton("+  NOVA PASTA") { createFolderDialog() })
+        else header.addView(actionButton("+  MAPAS") { picker.launch(arrayOf("application/pdf")) })
+        return header
+    }
+
+    private fun sectionLabel(label: String) = TextView(this).apply {
+        text = label; textSize = 12f; setTextColor(Color.rgb(91, 110, 95)); setTypeface(typeface, Typeface.BOLD); setPadding(dp(4), dp(10), 0, dp(10))
+    }
+
+    private fun emptyLibraryView(title: String, message: String): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(24), dp(70), dp(24), dp(40))
+        addView(TextView(this@MainActivity).apply { text = "📁"; textSize = 52f; gravity = Gravity.CENTER })
+        addView(TextView(this@MainActivity).apply { text = title; textSize = 20f; setTextColor(Color.rgb(35,55,40)); setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER; setPadding(0,dp(10),0,dp(5)) })
+        addView(TextView(this@MainActivity).apply { text = message; textSize = 14f; setTextColor(Color.rgb(100,112,103)); gravity = Gravity.CENTER })
+    }
+
+    private fun folderCard(folder: File): View {
+        val count = folder.listFiles { f -> f.isFile && f.extension.equals("pdf", true) }?.size ?: 0
         val card = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(14), dp(10), dp(14))
-            background = rounded(Color.WHITE, 18f, Color.rgb(222, 228, 223), 1)
-            isClickable = true
-            setOnClickListener { openSavedMap(file) }
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(14), dp(10), dp(14)); background = rounded(Color.WHITE,18f,Color.rgb(222,228,223),1)
+            isClickable = true; setOnClickListener { showFolder(folder) }
         }
-        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        lp.setMargins(0, 0, 0, dp(10))
-        card.layoutParams = lp
-
+        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT); lp.setMargins(0,0,0,dp(10)); card.layoutParams = lp
+        card.addView(TextView(this).apply { text = "📁"; textSize = 31f; gravity = Gravity.CENTER; background = rounded(Color.rgb(226,244,232),14f) }, LinearLayout.LayoutParams(dp(58),dp(58)))
+        val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(13),0,dp(8),0) }
+        info.addView(TextView(this).apply { text = folder.name; textSize = 16f; setTextColor(Color.rgb(30,48,34)); setTypeface(typeface,Typeface.BOLD); maxLines = 2 })
+        info.addView(TextView(this).apply { text = if (count == 1) "1 mapa" else "$count mapas"; textSize = 12f; setTextColor(Color.rgb(110,122,112)); setPadding(0,dp(4),0,0) })
+        card.addView(info, LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f))
         card.addView(TextView(this).apply {
-            text = "🗺"
-            textSize = 31f
-            gravity = Gravity.CENTER
-            background = rounded(Color.rgb(232, 244, 234), 14f)
-        }, LinearLayout.LayoutParams(dp(58), dp(58)))
-
-        val info = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(13), 0, dp(8), 0)
-        }
-        info.addView(TextView(this).apply {
-            text = file.nameWithoutExtension
-            maxLines = 2
-            textSize = 16f
-            setTextColor(Color.rgb(30, 48, 34))
-            setTypeface(typeface, Typeface.BOLD)
-        })
-        info.addView(TextView(this).apply {
-            text = "GeoPDF • ${(file.length() / 1024.0 / 1024.0).let { String.format(Locale.US, "%.1f MB", it) }}"
-            textSize = 12f
-            setTextColor(Color.rgb(110, 122, 112))
-            setPadding(0, dp(4), 0, 0)
-        })
-        card.addView(info, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-
-        val menu = TextView(this).apply {
-            text = "⋮"
-            textSize = 28f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(65, 82, 69))
-            setOnClickListener {
-                PopupMenu(this@MainActivity, this).apply {
-                    menu.add("Abrir")
-                    menu.add("Excluir mapa")
-                    setOnMenuItemClickListener { item ->
-                        when (item.title.toString()) {
-                            "Abrir" -> openSavedMap(file)
-                            "Excluir mapa" -> confirmDelete(file)
-                        }
-                        true
-                    }
-                    show()
+            text="⋮"; textSize=28f; gravity=Gravity.CENTER; setTextColor(Color.rgb(65,82,69)); setOnClickListener {
+                PopupMenu(this@MainActivity,this).apply {
+                    menu.add("Abrir pasta"); menu.add("Renomear pasta"); menu.add("Excluir pasta")
+                    setOnMenuItemClickListener { item -> when(item.title.toString()) { "Abrir pasta" -> showFolder(folder); "Renomear pasta" -> renameFolderDialog(folder); "Excluir pasta" -> confirmDeleteFolder(folder) }; true }; show()
                 }
             }
-        }
-        card.addView(menu, LinearLayout.LayoutParams(dp(44), dp(54)))
+        }, LinearLayout.LayoutParams(dp(44),dp(54)))
         return card
     }
 
-    private fun importMaps(uris: List<Uri>) {
-        val progress = android.app.ProgressDialog(this).apply {
-            setTitle("Importando mapas")
-            setProgressStyle(android.app.ProgressDialog.STYLE_HORIZONTAL)
-            max = uris.size
-            progress = 0
-            setCancelable(false)
-            setMessage("Preparando...")
-            show()
+    private fun showFolder(folder: File) {
+        currentMap = null; currentFolder = folder; root.removeAllViews(); root.setBackgroundColor(Color.rgb(245,247,245))
+        val page = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(18),dp(18),dp(18)) }
+        val files = folder.listFiles { f -> f.isFile && f.extension.equals("pdf",true) }?.sortedBy { it.name.lowercase(Locale.getDefault()) } ?: emptyList()
+        page.addView(libraryHeader(folder.name, if(files.size==1) "1 mapa" else "${files.size} mapas", false))
+        val scroll=ScrollView(this); val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,dp(8),0,dp(20)) }
+        if(files.isEmpty()) list.addView(emptyLibraryView("Pasta vazia", "Toque em “+ Mapas” para selecionar vários GeoPDFs.")) else files.forEach { list.addView(mapCard(it)) }
+        scroll.addView(list); page.addView(scroll,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f)); root.addView(page,FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT))
+    }
+
+    private fun createFolderDialog() {
+        val input=EditText(this).apply { hint="Ex.: Fazendas Lambari"; setSingleLine(true) }
+        val box=FrameLayout(this).apply { setPadding(dp(20),0,dp(20),0); addView(input,FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.WRAP_CONTENT)) }
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Nova pasta").setView(box).setNegativeButton("Cancelar",null).setPositiveButton("Criar") { _,_ ->
+            val name=safeFolderName(input.text.toString()); if(name.isBlank()) Toast.makeText(this,"Digite um nome para a pasta",Toast.LENGTH_SHORT).show() else { val f=File(mapsDir,name); if(f.exists()) Toast.makeText(this,"Já existe uma pasta com esse nome",Toast.LENGTH_SHORT).show() else { f.mkdirs(); showLibrary() } }
+        }.show()
+    }
+
+    private fun renameFolderDialog(folder: File) {
+        val input=EditText(this).apply { setText(folder.name); setSelection(text.length); setSingleLine(true) }
+        val box=FrameLayout(this).apply { setPadding(dp(20),0,dp(20),0); addView(input,FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.WRAP_CONTENT)) }
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Renomear pasta").setView(box).setNegativeButton("Cancelar",null).setPositiveButton("Salvar") { _,_ ->
+            val name=safeFolderName(input.text.toString()); val dest=File(mapsDir,name); if(name.isBlank() || (dest.exists() && dest != folder)) Toast.makeText(this,"Nome inválido ou já existente",Toast.LENGTH_SHORT).show() else { folder.renameTo(dest); showLibrary() }
+        }.show()
+    }
+
+    private fun confirmDeleteFolder(folder: File) {
+        val count=folder.listFiles { f -> f.isFile && f.extension.equals("pdf",true) }?.size ?: 0
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Excluir pasta?").setMessage(if(count>0) "${folder.name} contém $count mapas. Todos serão excluídos do app." else folder.name).setNegativeButton("Cancelar",null).setPositiveButton("Excluir") { _,_ -> folder.deleteRecursively(); showLibrary() }.show()
+    }
+
+    private fun safeFolderName(name:String)=name.trim().replace(Regex("[\\/:*?\"<>|]"),"_")
+
+    private fun mapCard(file: File): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(14), dp(10), dp(14)); background = rounded(Color.WHITE, 18f, Color.rgb(222, 228, 223), 1); isClickable = true; setOnClickListener { openSavedMap(file) }
         }
+        val lp=LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT); lp.setMargins(0,0,0,dp(10)); card.layoutParams=lp
+        card.addView(TextView(this).apply { text="🗺"; textSize=31f; gravity=Gravity.CENTER; background=rounded(Color.rgb(232,244,234),14f) },LinearLayout.LayoutParams(dp(58),dp(58)))
+        val info=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(13),0,dp(8),0) }
+        info.addView(TextView(this).apply { text=file.nameWithoutExtension; maxLines=2; textSize=16f; setTextColor(Color.rgb(30,48,34)); setTypeface(typeface,Typeface.BOLD) })
+        info.addView(TextView(this).apply { text="GeoPDF • ${(file.length()/1024.0/1024.0).let { String.format(Locale.US,"%.1f MB",it) }}"; textSize=12f; setTextColor(Color.rgb(110,122,112)); setPadding(0,dp(4),0,0) })
+        card.addView(info,LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f))
+        card.addView(TextView(this).apply { text="⋮"; textSize=28f; gravity=Gravity.CENTER; setTextColor(Color.rgb(65,82,69)); setOnClickListener { PopupMenu(this@MainActivity,this).apply { menu.add("Abrir"); menu.add("Excluir mapa"); setOnMenuItemClickListener { item -> when(item.title.toString()) { "Abrir"->openSavedMap(file); "Excluir mapa"->confirmDelete(file) }; true }; show() } } },LinearLayout.LayoutParams(dp(44),dp(54)))
+        return card
+    }
 
-        Thread {
-            var imported = 0
-            var failed = 0
-            uris.forEachIndexed { index, uri ->
-                val name = queryName(uri)?.ifBlank { "Mapa.pdf" } ?: "Mapa.pdf"
-                runOnUiThread {
-                    progress.progress = index
-                    progress.setMessage("${index + 1} de ${uris.size}: $name")
-                }
-                if (copyMapToLibrary(uri)) imported++ else failed++
-            }
-
-            runOnUiThread {
-                progress.progress = uris.size
-                progress.dismiss()
-                showLibrary()
-                val msg = when {
-                    failed == 0 -> "$imported mapas adicionados"
-                    imported == 0 -> "Não foi possível importar os mapas"
-                    else -> "$imported mapas adicionados • $failed com erro"
-                }
-                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-            }
+    private fun importMaps(uris: List<Uri>, destination: File) {
+        val progress=android.app.ProgressDialog(this).apply { setTitle("Importando mapas"); setProgressStyle(android.app.ProgressDialog.STYLE_HORIZONTAL); max=uris.size; progress=0; setCancelable(false); setMessage("Preparando..."); show() }
+        Thread { var imported=0; var failed=0; uris.forEachIndexed { index,uri -> val name=queryName(uri)?.ifBlank { "Mapa.pdf" } ?: "Mapa.pdf"; runOnUiThread { progress.progress=index; progress.setMessage("${index+1} de ${uris.size}: $name") }; if(copyMapToLibrary(uri,destination)) imported++ else failed++ }
+            runOnUiThread { progress.progress=uris.size; progress.dismiss(); if(destination==mapsDir) showLibrary() else showFolder(destination); val msg=when { failed==0 -> "$imported mapas adicionados"; imported==0 -> "Não foi possível importar os mapas"; else -> "$imported mapas adicionados • $failed com erro" }; Toast.makeText(this,msg,Toast.LENGTH_LONG).show() }
         }.start()
     }
 
-    private fun copyMapToLibrary(uri: Uri): Boolean {
-        val original = queryName(uri)?.ifBlank { "Mapa.pdf" } ?: "Mapa.pdf"
-        val safeName = original.replace(Regex("[\\/:*?\"<>|]"), "_")
-        var dest = File(mapsDir, safeName)
-        var n = 2
-        while (dest.exists()) {
-            val base = dest.nameWithoutExtension.substringBeforeLast(" (")
-            dest = File(mapsDir, "$base ($n).pdf")
-            n++
-        }
-
-        return try {
-            contentResolver.openInputStream(uri)!!.use { input ->
-                dest.outputStream().use { output -> input.copyTo(output) }
-            }
-            true
-        } catch (_: Exception) {
-            dest.delete()
-            false
-        }
+    private fun copyMapToLibrary(uri: Uri, destination: File): Boolean {
+        destination.mkdirs(); val original=queryName(uri)?.ifBlank { "Mapa.pdf" } ?: "Mapa.pdf"; val safeName=original.replace(Regex("[\\/:*?\"<>|]"),"_"); var dest=File(destination,safeName); var n=2
+        while(dest.exists()) { val base=dest.nameWithoutExtension.substringBeforeLast(" ("); dest=File(destination,"$base ($n).pdf"); n++ }
+        return try { contentResolver.openInputStream(uri)!!.use { input -> dest.outputStream().use { output -> input.copyTo(output) } }; true } catch(_:Exception) { dest.delete(); false }
     }
 
     private fun queryName(uri: Uri): String? {
-        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-            if (c.moveToFirst()) return c.getString(0)
-        }
-        return null
+        contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { c -> if(c.moveToFirst()) return c.getString(0) }; return null
     }
 
     private fun confirmDelete(file: File) {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Excluir mapa?")
-            .setMessage(file.nameWithoutExtension)
-            .setNegativeButton("Cancelar", null)
-            .setPositiveButton("Excluir") { _, _ -> file.delete(); showLibrary() }
-            .show()
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Excluir mapa?").setMessage(file.nameWithoutExtension).setNegativeButton("Cancelar",null).setPositiveButton("Excluir") { _,_ -> file.delete(); file.parentFile?.let { if(it != mapsDir && it.exists()) showFolder(it) else showLibrary() } ?: showLibrary() }.show()
     }
 
     private fun openSavedMap(file: File) {
