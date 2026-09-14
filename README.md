@@ -22,3 +22,10 @@ Esta versão considera o **Viewport (/VP e /BBox)** do GeoPDF. Isso é necessár
 2. Toque em **ABRIR GEOPDF**.
 3. Selecione o PDF georreferenciado.
 4. Aguarde o GPS estabilizar; a precisão aparece no topo.
+
+## Versão 1.1 — Biblioteca de mapas
+- Tela inicial "Meus Mapas".
+- Importação de vários GeoPDFs para o armazenamento interno do aplicativo.
+- Mapas continuam disponíveis offline dentro do app.
+- Abrir e excluir mapas pela biblioteca.
+- Novo layout de mapa com barra superior, zoom +/− e centralização no GPS.
