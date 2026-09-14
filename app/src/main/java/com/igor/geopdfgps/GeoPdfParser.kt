@@ -61,18 +61,20 @@ object GeoPdfParser {
             val g = numberArray(measure.getDictionaryObject(COSName.getPDFName("GPTS")))
             if (l.size < 6 || g.size < 6) continue
 
-            val left = minOf(bbox[0], bbox[2])
-            val right = maxOf(bbox[0], bbox[2])
-            val bottom = minOf(bbox[1], bbox[3])
-            val top = maxOf(bbox[1], bbox[3])
-            val bw = right - left
-            val bh = top - bottom
+            // IMPORTANT: preserve the BBox axis direction exactly as stored in the PDF.
+            // ArcMap may write BBox as [left, top, right, bottom]. Using min/max here
+            // flips the vertical axis and puts the GPS marker on the opposite side of
+            // the map. LPTS must be interpolated along the signed BBox dimensions.
+            val bx0 = bbox[0]
+            val by0 = bbox[1]
+            val bw = bbox[2] - bbox[0]
+            val bh = bbox[3] - bbox[1]
             if (bw == 0.0 || bh == 0.0) continue
 
             val lp = l.chunked(2).mapNotNull { pair ->
                 if (pair.size < 2) null else {
-                    val pageX = (left + pair[0] * bw - pageLeft) / pageWidth
-                    val pageY = (bottom + pair[1] * bh - pageBottom) / pageHeight
+                    val pageX = (bx0 + pair[0] * bw - pageLeft) / pageWidth
+                    val pageY = (by0 + pair[1] * bh - pageBottom) / pageHeight
                     pageX to pageY
                 }
             }
