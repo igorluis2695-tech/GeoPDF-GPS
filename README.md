@@ -2,27 +2,23 @@
 
 Aplicativo Android simples para abrir um PDF georreferenciado (GeoPDF) e mostrar a posição GPS do celular sobre o mapa.
 
+## Correção de georreferência
+
+Esta versão considera o **Viewport (/VP e /BBox)** do GeoPDF. Isso é necessário em PDFs exportados pelo ArcMap, porque `LPTS` é relativo somente à área do mapa dentro da página e não à folha inteira (que também contém legenda, escala e quadro de informações).
+
 ## Gerar o APK online pelo GitHub
 
-1. Crie um repositório novo no GitHub.
-2. Envie **todo o conteúdo desta pasta** para o repositório, inclusive a pasta `.github`.
-3. Abra a aba **Actions**.
-4. Abra **Build APK**.
-5. Clique em **Run workflow** e depois em **Run workflow** novamente.
-6. Quando aparecer o símbolo verde de concluído, abra a execução.
-7. Em **Artifacts**, baixe **GeoPDF-GPS-APK**.
-8. Descompacte o arquivo baixado. Dentro estará `app-debug.apk`.
-9. Passe `app-debug.apk` para o celular Android e instale.
-
-> No Android, pode ser necessário autorizar "Instalar apps desconhecidos" para o navegador/gerenciador de arquivos usado na instalação.
+1. Envie todo o conteúdo desta pasta para o repositório, inclusive `.github`.
+2. Abra **Actions**.
+3. Abra **Build APK**.
+4. Clique **Run workflow**.
+5. Quando concluir com ✓ verde, abra a execução.
+6. Em **Artifacts**, baixe **GeoPDF-GPS-APK**.
+7. Descompacte e instale `app-debug.apk` no Android.
 
 ## Como usar
 
-1. Abra o app e permita acesso à localização.
+1. Abra o app e permita localização precisa.
 2. Toque em **ABRIR GEOPDF**.
-3. Selecione seu PDF georreferenciado.
-4. O GPS aparecerá sobre o mapa quando o PDF usar o padrão GPTS/LPTS suportado nesta versão.
-
-## Observação importante
-
-GeoPDFs podem armazenar georreferenciamento de maneiras diferentes. Esta primeira versão lê GeoPDF com `GPTS/LPTS`. Se um PDF específico não abrir corretamente, o parser precisa ser adaptado ao formato desse arquivo.
+3. Selecione o PDF georreferenciado.
+4. Aguarde o GPS estabilizar; a precisão aparece no topo.

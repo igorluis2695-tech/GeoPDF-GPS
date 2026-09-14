@@ -12,50 +12,110 @@ object GeoPdfParser {
 
     fun parse(context: Context, uri: Uri): GeoReference? {
         val tmp = File.createTempFile("geopdf_", ".pdf", context.cacheDir)
-        context.contentResolver.openInputStream(uri)!!.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+        context.contentResolver.openInputStream(uri)!!.use { input ->
+            tmp.outputStream().use { input.copyTo(it) }
+        }
+
         return try {
             PDDocument.load(tmp).use { doc ->
                 for (page in doc.pages) {
-                    val found = findMeasure(page.cosObject, mutableSetOf())
-                    if (found != null) return@use found
+                    // GeoPDFs exported by ArcMap usually put the Measure dictionary inside
+                    // a Viewport (/VP). LPTS is normalized to the viewport, NOT to the full
+                    // PDF page. Convert it to full-page normalized coordinates so the GPS
+                    // marker lines up with the bitmap rendered by PdfRenderer.
+                    parseViewport(page.cosObject)?.let { return@use it }
+
+                    // Fallback for GeoPDFs that store GPTS/LPTS elsewhere.
+                    findMeasure(page.cosObject, mutableSetOf())?.let { return@use it }
                 }
                 null
             }
-        } finally { tmp.delete() }
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    private fun parseViewport(page: COSDictionary): GeoReference? {
+        val media = numberArray(page.getDictionaryObject(COSName.getPDFName("MediaBox")))
+        if (media.size < 4) return null
+
+        val pageLeft = media[0]
+        val pageBottom = media[1]
+        val pageWidth = media[2] - media[0]
+        val pageHeight = media[3] - media[1]
+        if (pageWidth == 0.0 || pageHeight == 0.0) return null
+
+        val vpBase = deref(page.getDictionaryObject(COSName.getPDFName("VP")))
+        val viewports = when (vpBase) {
+            is COSArray -> (0 until vpBase.size()).mapNotNull { deref(vpBase.getObject(it)) as? COSDictionary }
+            is COSDictionary -> listOf(vpBase)
+            else -> emptyList()
+        }
+
+        for (vp in viewports) {
+            val bbox = numberArray(vp.getDictionaryObject(COSName.getPDFName("BBox")))
+            if (bbox.size < 4) continue
+
+            val measure = deref(vp.getDictionaryObject(COSName.getPDFName("Measure"))) as? COSDictionary ?: continue
+            val l = numberArray(measure.getDictionaryObject(COSName.getPDFName("LPTS")))
+            val g = numberArray(measure.getDictionaryObject(COSName.getPDFName("GPTS")))
+            if (l.size < 6 || g.size < 6) continue
+
+            val left = minOf(bbox[0], bbox[2])
+            val right = maxOf(bbox[0], bbox[2])
+            val bottom = minOf(bbox[1], bbox[3])
+            val top = maxOf(bbox[1], bbox[3])
+            val bw = right - left
+            val bh = top - bottom
+            if (bw == 0.0 || bh == 0.0) continue
+
+            val lp = l.chunked(2).mapNotNull { pair ->
+                if (pair.size < 2) null else {
+                    val pageX = (left + pair[0] * bw - pageLeft) / pageWidth
+                    val pageY = (bottom + pair[1] * bh - pageBottom) / pageHeight
+                    pageX to pageY
+                }
+            }
+            val gp = g.chunked(2).mapNotNull { pair ->
+                if (pair.size < 2) null else pair[0] to pair[1]
+            }
+            if (lp.size >= 3 && gp.size >= 3) return GeoReference(lp, gp)
+        }
+        return null
     }
 
     private fun findMeasure(base: COSBase?, seen: MutableSet<Int>): GeoReference? {
-        if (base == null) return null
-        val id = System.identityHashCode(base)
+        val obj = deref(base) ?: return null
+        val id = System.identityHashCode(obj)
         if (!seen.add(id)) return null
-        when (base) {
-            is COSObject -> return findMeasure(base.`object`, seen)
+
+        when (obj) {
             is COSDictionary -> {
-                val l = numberArray(base.getDictionaryObject(COSName.getPDFName("LPTS")))
-                val g = numberArray(base.getDictionaryObject(COSName.getPDFName("GPTS")))
+                val l = numberArray(obj.getDictionaryObject(COSName.getPDFName("LPTS")))
+                val g = numberArray(obj.getDictionaryObject(COSName.getPDFName("GPTS")))
                 if (l.size >= 6 && g.size >= 6) {
-                    val lp = l.chunked(2).map { it[0] to it[1] }
-                    val gp = g.chunked(2).map { it[0] to it[1] }
+                    val lp = l.chunked(2).mapNotNull { if (it.size >= 2) it[0] to it[1] else null }
+                    val gp = g.chunked(2).mapNotNull { if (it.size >= 2) it[0] to it[1] else null }
                     return GeoReference(lp, gp)
                 }
-                for (key in base.keySet()) {
-                    val r = findMeasure(base.getDictionaryObject(key), seen)
-                    if (r != null) return r
+                for (key in obj.keySet()) {
+                    findMeasure(obj.getDictionaryObject(key), seen)?.let { return it }
                 }
             }
-            is COSArray -> for (i in 0 until base.size()) {
-                val r = findMeasure(base.getObject(i), seen)
-                if (r != null) return r
+            is COSArray -> for (i in 0 until obj.size()) {
+                findMeasure(obj.getObject(i), seen)?.let { return it }
             }
         }
         return null
     }
 
+    private fun deref(base: COSBase?): COSBase? = if (base is COSObject) base.`object` else base
+
     private fun numberArray(base: COSBase?): List<Double> {
-        val arr = when (base) { is COSArray -> base; is COSObject -> base.`object` as? COSArray; else -> null } ?: return emptyList()
+        val arr = deref(base) as? COSArray ?: return emptyList()
         val out = mutableListOf<Double>()
         for (i in 0 until arr.size()) {
-            val v = arr.getObject(i)
+            val v = deref(arr.getObject(i))
             if (v is COSNumber) out += v.doubleValue()
         }
         return out
