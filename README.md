@@ -1,6 +1,9 @@
-GeoTrack v1.7.3
-- Tela de abertura: 3,4 segundos
-- Uma única barra verde animada, no tamanho da barra curta aprovada
-- Fundo com a imagem de fazenda escolhida pelo usuário, com visibilidade intermediária
-- Mantidos logo, linhas topográficas, drone e crédito do setor de Topografia
-- Demais funções do GeoTrack preservadas da v1.7.2
+# GeoTrack v1.7.4
+Base: v1.7.2 (instalável/funcional).
+
+Alterações somente na abertura:
+- duração: 3,5 segundos;
+- uma única barra animada, no tamanho da barra original;
+- barra preenche suavemente até o fim;
+- fundo aprovado com a imagem da fazenda mais visível;
+- restante do app preservado.

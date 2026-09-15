@@ -27,55 +27,46 @@ class SplashActivity : Activity() {
 
         val splash = ImageView(this).apply {
             setImageResource(R.drawable.splash_geotrack)
-            scaleType = ImageView.ScaleType.FIT_XY
+            scaleType = ImageView.ScaleType.CENTER_CROP
         }
         root.addView(splash, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
 
-        // Uma única barra real, alinhada exatamente sobre a barra desenhada na arte.
+        // Cobre a barra estática da arte e cria uma barra realmente animada.
         val track = View(this).apply {
             background = rounded(Color.rgb(67, 86, 82), 8f)
         }
+        val trackParams = FrameLayout.LayoutParams(dp(160), dp(7)).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = (resources.displayMetrics.heightPixels * 0.603f).toInt()
+        }
+        root.addView(track, trackParams)
+
         val fill = View(this).apply {
             background = rounded(Color.rgb(0, 226, 139), 8f)
             pivotX = 0f
             scaleX = 0f
         }
-        root.addView(track, FrameLayout.LayoutParams(1, 1))
-        root.addView(fill, FrameLayout.LayoutParams(1, 1))
+        val fillParams = FrameLayout.LayoutParams(dp(160), dp(7)).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = (resources.displayMetrics.heightPixels * 0.603f).toInt()
+        }
+        root.addView(fill, fillParams)
 
         setContentView(root)
 
-        root.post {
-            // Proporções medidas na arte aprovada: barra curta centralizada.
-            val barWidth = (root.width * 0.378f).toInt()
-            val barHeight = (root.height * 0.008f).toInt().coerceAtLeast(dp(5))
-            val left = (root.width - barWidth) / 2
-            val top = (root.height * 0.6075f).toInt()
-
-            track.layoutParams = FrameLayout.LayoutParams(barWidth, barHeight).apply {
-                leftMargin = left
-                topMargin = top
-            }
-            fill.layoutParams = FrameLayout.LayoutParams(barWidth, barHeight).apply {
-                leftMargin = left
-                topMargin = top
-            }
-            fill.pivotX = 0f
-
-            animator = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 3400L
-                interpolator = LinearInterpolator()
-                addUpdateListener { fill.scaleX = it.animatedValue as Float }
-                addListener(object : android.animation.AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: android.animation.Animator) {
-                        openMain()
-                    }
-                })
-                start()
-            }
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 3500L
+            interpolator = LinearInterpolator()
+            addUpdateListener { fill.scaleX = it.animatedValue as Float }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    openMain()
+                }
+            })
+            start()
         }
     }
 
