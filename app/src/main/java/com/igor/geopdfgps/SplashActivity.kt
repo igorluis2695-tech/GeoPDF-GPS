@@ -6,12 +6,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.view.Window
-import android.view.WindowInsetsController
 import android.widget.ImageView
-import androidx.appcompat.app.AppCompatActivity
+import android.app.Activity
 
-class SplashActivity : AppCompatActivity() {
+class SplashActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val openApp = Runnable {
         startActivity(Intent(this, MainActivity::class.java))
@@ -23,16 +21,6 @@ class SplashActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(0, 27, 22)
         window.navigationBarColor = Color.BLACK
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
-            window.insetsController?.setSystemBarsAppearance(
-                0,
-                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = 0
-        }
-
         val splash = ImageView(this).apply {
             setImageResource(R.drawable.splash_geotrack)
             scaleType = ImageView.ScaleType.CENTER_CROP
