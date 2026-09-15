@@ -1,4 +1,16 @@
-# GeoPDF GPS — Android
+# GeoTrack v1.4
+
+Aplicativo Android para organizar GeoPDFs por pastas e visualizar a posição GPS em tempo real, inclusive offline.
+
+## v1.4
+- Novo nome: GeoTrack
+- Novo ícone/logo verde com marcador GPS
+- Biblioteca em tema escuro, inspirada no layout aprovado
+- Pastas, contagem de mapas e menus de opções
+- Importação múltipla de GeoPDFs
+- GPS/georreferenciamento preservados da versão funcional anterior
+
+# GeoTrack — Android
 
 Aplicativo Android simples para abrir um PDF georreferenciado (GeoPDF) e mostrar a posição GPS do celular sobre o mapa.
 

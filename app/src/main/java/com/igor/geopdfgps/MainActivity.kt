@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         currentMap = null
         currentFolder = null
         root.removeAllViews()
-        root.setBackgroundColor(Color.rgb(245, 247, 245))
+        root.setBackgroundColor(Color.rgb(12, 18, 15))
 
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -92,46 +92,60 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun libraryHeader(title: String, subtitle: String, rootScreen: Boolean): View {
-        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), dp(6), dp(4), dp(12)) }
+        val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(2), dp(4), dp(2), dp(10)) }
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         if (!rootScreen) {
             header.addView(TextView(this).apply {
-                text = "‹"; textSize = 38f; gravity = Gravity.CENTER; setTextColor(Color.rgb(24, 54, 31)); setOnClickListener { showLibrary() }
+                text = "‹"; textSize = 38f; gravity = Gravity.CENTER; setTextColor(Color.WHITE); setOnClickListener { showLibrary() }
             }, LinearLayout.LayoutParams(dp(44), dp(52)))
+        } else {
+            header.addView(TextView(this).apply {
+                text = "⌖"; textSize = 28f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+                background = rounded(Color.rgb(8, 92, 57), 14f)
+            }, LinearLayout.LayoutParams(dp(48), dp(48)))
         }
-        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titles.addView(TextView(this).apply { text = title; textSize = 25f; setTextColor(Color.rgb(24, 54, 31)); setTypeface(typeface, Typeface.BOLD); maxLines = 1 })
-        titles.addView(TextView(this).apply { text = subtitle; textSize = 13f; setTextColor(Color.rgb(95, 108, 98)) })
+        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10),0,dp(8),0) }
+        titles.addView(TextView(this).apply {
+            text = if (rootScreen) "GeoTrack" else title; textSize = 25f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); maxLines = 1
+        })
+        titles.addView(TextView(this).apply {
+            text = if (rootScreen) "SEUS MAPAS, SEMPRE COM VOCÊ." else subtitle; textSize = if(rootScreen) 10f else 13f; letterSpacing = if(rootScreen) .16f else 0f; setTextColor(Color.rgb(166,181,171))
+        })
         header.addView(titles, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         if (rootScreen) header.addView(actionButton("+  NOVA PASTA") { createFolderDialog() })
         else header.addView(actionButton("+  MAPAS") { picker.launch(arrayOf("application/pdf")) })
-        return header
+        wrap.addView(header)
+        if (rootScreen) wrap.addView(TextView(this).apply {
+            text = "Meus Mapas"; textSize = 18f; setTypeface(typeface,Typeface.BOLD); setTextColor(Color.WHITE); setPadding(dp(4),dp(20),0,dp(4))
+        })
+        return wrap
     }
 
     private fun sectionLabel(label: String) = TextView(this).apply {
-        text = label; textSize = 12f; setTextColor(Color.rgb(91, 110, 95)); setTypeface(typeface, Typeface.BOLD); setPadding(dp(4), dp(10), 0, dp(10))
+        text = label; textSize = 12f; setTextColor(Color.rgb(145, 163, 151)); setTypeface(typeface, Typeface.BOLD); setPadding(dp(4), dp(10), 0, dp(10))
     }
 
     private fun emptyLibraryView(title: String, message: String): View = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(24), dp(70), dp(24), dp(40))
         addView(TextView(this@MainActivity).apply { text = "📁"; textSize = 52f; gravity = Gravity.CENTER })
-        addView(TextView(this@MainActivity).apply { text = title; textSize = 20f; setTextColor(Color.rgb(35,55,40)); setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER; setPadding(0,dp(10),0,dp(5)) })
-        addView(TextView(this@MainActivity).apply { text = message; textSize = 14f; setTextColor(Color.rgb(100,112,103)); gravity = Gravity.CENTER })
+        addView(TextView(this@MainActivity).apply { text = title; textSize = 20f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER; setPadding(0,dp(10),0,dp(5)) })
+        addView(TextView(this@MainActivity).apply { text = message; textSize = 14f; setTextColor(Color.rgb(150,165,155)); gravity = Gravity.CENTER })
     }
 
     private fun folderCard(folder: File): View {
         val count = folder.listFiles { f -> f.isFile && f.extension.equals("pdf", true) }?.size ?: 0
         val card = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(14), dp(10), dp(14)); background = rounded(Color.WHITE,18f,Color.rgb(222,228,223),1)
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(14), dp(10), dp(14)); background = rounded(Color.rgb(20,29,24),18f,Color.rgb(42,58,48),1)
             isClickable = true; setOnClickListener { showFolder(folder) }
         }
         val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT); lp.setMargins(0,0,0,dp(10)); card.layoutParams = lp
-        card.addView(TextView(this).apply { text = "📁"; textSize = 31f; gravity = Gravity.CENTER; background = rounded(Color.rgb(226,244,232),14f) }, LinearLayout.LayoutParams(dp(58),dp(58)))
+        card.addView(TextView(this).apply { text = "📁"; textSize = 31f; gravity = Gravity.CENTER; background = rounded(Color.rgb(20,92,55),14f) }, LinearLayout.LayoutParams(dp(58),dp(58)))
         val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(13),0,dp(8),0) }
-        info.addView(TextView(this).apply { text = folder.name; textSize = 16f; setTextColor(Color.rgb(30,48,34)); setTypeface(typeface,Typeface.BOLD); maxLines = 2 })
-        info.addView(TextView(this).apply { text = if (count == 1) "1 mapa" else "$count mapas"; textSize = 12f; setTextColor(Color.rgb(110,122,112)); setPadding(0,dp(4),0,0) })
+        info.addView(TextView(this).apply { text = folder.name; textSize = 16f; setTextColor(Color.WHITE); setTypeface(typeface,Typeface.BOLD); maxLines = 2 })
+        info.addView(TextView(this).apply { text = if (count == 1) "1 mapa" else "$count mapas"; textSize = 12f; setTextColor(Color.rgb(158,173,163)); setPadding(0,dp(4),0,0) })
         card.addView(info, LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f))
         card.addView(TextView(this).apply {
-            text="⋮"; textSize=28f; gravity=Gravity.CENTER; setTextColor(Color.rgb(65,82,69)); setOnClickListener {
+            text="⋮"; textSize=28f; gravity=Gravity.CENTER; setTextColor(Color.rgb(205,215,208)); setOnClickListener {
                 PopupMenu(this@MainActivity,this).apply {
                     menu.add("Abrir pasta"); menu.add("Renomear pasta"); menu.add("Excluir pasta")
                     setOnMenuItemClickListener { item -> when(item.title.toString()) { "Abrir pasta" -> showFolder(folder); "Renomear pasta" -> renameFolderDialog(folder); "Excluir pasta" -> confirmDeleteFolder(folder) }; true }; show()
@@ -142,7 +156,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun showFolder(folder: File) {
-        currentMap = null; currentFolder = folder; root.removeAllViews(); root.setBackgroundColor(Color.rgb(245,247,245))
+        currentMap = null; currentFolder = folder; root.removeAllViews(); root.setBackgroundColor(Color.rgb(12,18,15))
         val page = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(18),dp(18),dp(18)) }
         val files = folder.listFiles { f -> f.isFile && f.extension.equals("pdf",true) }?.sortedBy { it.name.lowercase(Locale.getDefault()) } ?: emptyList()
         page.addView(libraryHeader(folder.name, if(files.size==1) "1 mapa" else "${files.size} mapas", false))
@@ -179,12 +193,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(14), dp(10), dp(14)); background = rounded(Color.WHITE, 18f, Color.rgb(222, 228, 223), 1); isClickable = true; setOnClickListener { openSavedMap(file) }
         }
         val lp=LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT); lp.setMargins(0,0,0,dp(10)); card.layoutParams=lp
-        card.addView(TextView(this).apply { text="🗺"; textSize=31f; gravity=Gravity.CENTER; background=rounded(Color.rgb(232,244,234),14f) },LinearLayout.LayoutParams(dp(58),dp(58)))
+        card.addView(TextView(this).apply { text="🗺"; textSize=31f; gravity=Gravity.CENTER; background=rounded(Color.rgb(20,92,55),14f) },LinearLayout.LayoutParams(dp(58),dp(58)))
         val info=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(13),0,dp(8),0) }
-        info.addView(TextView(this).apply { text=file.nameWithoutExtension; maxLines=2; textSize=16f; setTextColor(Color.rgb(30,48,34)); setTypeface(typeface,Typeface.BOLD) })
-        info.addView(TextView(this).apply { text="GeoPDF • ${(file.length()/1024.0/1024.0).let { String.format(Locale.US,"%.1f MB",it) }}"; textSize=12f; setTextColor(Color.rgb(110,122,112)); setPadding(0,dp(4),0,0) })
+        info.addView(TextView(this).apply { text=file.nameWithoutExtension; maxLines=2; textSize=16f; setTextColor(Color.WHITE); setTypeface(typeface,Typeface.BOLD) })
+        info.addView(TextView(this).apply { text="GeoPDF • ${(file.length()/1024.0/1024.0).let { String.format(Locale.US,"%.1f MB",it) }}"; textSize=12f; setTextColor(Color.rgb(158,173,163)); setPadding(0,dp(4),0,0) })
         card.addView(info,LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f))
-        card.addView(TextView(this).apply { text="⋮"; textSize=28f; gravity=Gravity.CENTER; setTextColor(Color.rgb(65,82,69)); setOnClickListener { PopupMenu(this@MainActivity,this).apply { menu.add("Abrir"); menu.add("Excluir mapa"); setOnMenuItemClickListener { item -> when(item.title.toString()) { "Abrir"->openSavedMap(file); "Excluir mapa"->confirmDelete(file) }; true }; show() } } },LinearLayout.LayoutParams(dp(44),dp(54)))
+        card.addView(TextView(this).apply { text="⋮"; textSize=28f; gravity=Gravity.CENTER; setTextColor(Color.rgb(205,215,208)); setOnClickListener { PopupMenu(this@MainActivity,this).apply { menu.add("Abrir"); menu.add("Excluir mapa"); setOnMenuItemClickListener { item -> when(item.title.toString()) { "Abrir"->openSavedMap(file); "Excluir mapa"->confirmDelete(file) }; true }; show() } } },LinearLayout.LayoutParams(dp(44),dp(54)))
         return card
     }
 
@@ -224,7 +238,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(8), dp(10), dp(8))
-            setBackgroundColor(Color.rgb(25, 55, 32))
+            setBackgroundColor(Color.rgb(12, 20, 16))
         }
         bar.addView(TextView(this).apply {
             text = "‹"
@@ -245,7 +259,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         status = TextView(this).apply {
             text = "Lendo mapa..."
             textSize = 12f
-            setTextColor(Color.rgb(194, 220, 199))
+            setTextColor(Color.rgb(104, 218, 143))
             maxLines = 1
         }
         t.addView(mapTitle); t.addView(status)
@@ -273,7 +287,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(9), dp(12), dp(9))
-            setBackgroundColor(Color.rgb(25, 29, 26))
+            setBackgroundColor(Color.rgb(12, 18, 15))
         }
         bottom.addView(TextView(this).apply {
             text = "Arraste para mover • Pinça para zoom"
@@ -368,7 +382,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         setTextColor(Color.WHITE)
         setTypeface(typeface, Typeface.BOLD)
         setPadding(dp(14), dp(11), dp(14), dp(11))
-        background = rounded(Color.rgb(42, 112, 58), 12f)
+        background = rounded(Color.rgb(20, 196, 92), 12f)
         setOnClickListener { click() }
     }
 
