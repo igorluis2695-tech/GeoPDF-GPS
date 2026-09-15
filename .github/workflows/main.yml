@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK Assinado
 
 on:
   workflow_dispatch:
@@ -22,11 +22,25 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Restaurar keystore
+        run: |
+          echo "${{ secrets.GEOTRACK_KEYSTORE }}" | base64 --decode > geotrack-release.jks
+
       - name: Gerar APK
-        run: gradle assembleDebug
+        run: gradle assembleRelease
+
+      - name: Assinar APK
+        run: |
+          $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
+            --ks geotrack-release.jks \
+            --ks-key-alias geotrack \
+            --ks-pass pass:"${{ secrets.GEOTRACK_KEYSTORE_PASSWORD }}" \
+            --key-pass pass:"${{ secrets.GEOTRACK_KEY_PASSWORD }}" \
+            --out GeoTrack.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Salvar APK
         uses: actions/upload-artifact@v4
         with:
-          name: GeoPDF-GPS-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: GeoTrack-APK
+          path: GeoTrack.apk
