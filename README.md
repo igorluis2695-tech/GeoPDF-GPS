@@ -1,8 +1,6 @@
-# GeoTrack v1.5
+# GeoTrack v1.6
 
-Ajustes visuais solicitados:
-- logo oficial GeoTrack no cabeçalho e como ícone do app;
-- lista de mapas sem cartões brancos;
-- nome do PDF/fazenda visível em destaque;
-- tamanho do arquivo e menu de opções discretos;
-- mantém pastas, importação múltipla, GeoPDF e GPS/georreferenciamento existentes.
+- Miniatura real da primeira página de cada GeoPDF na lista.
+- Logo oficial escolhido (marcador branco + linhas de plantação verdes).
+- Mantidos GPS, georreferenciamento, pastas e importação múltipla.
+- Lista escura sem cartões brancos.

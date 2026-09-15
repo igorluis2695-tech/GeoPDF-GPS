@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -200,13 +201,14 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         row.layoutParams = lp
 
-        // Miniatura/ícone do mapa.
-        row.addView(TextView(this).apply {
-            text = "🗺"
-            textSize = 27f
-            gravity = Gravity.CENTER
-            background = rounded(Color.rgb(20, 92, 55), 12f)
-        }, LinearLayout.LayoutParams(dp(54), dp(54)))
+        // Miniatura real da primeira página do GeoPDF, como na referência.
+        val thumb = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = rounded(Color.WHITE, 9f)
+            clipToOutline = true
+        }
+        row.addView(thumb, LinearLayout.LayoutParams(dp(58), dp(70)))
+        loadPdfThumbnail(file, thumb)
 
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -257,6 +259,45 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)))
         }
         return wrap
+    }
+
+
+    private fun loadPdfThumbnail(file: File, imageView: ImageView) {
+        val cacheDir = File(filesDir, "thumbs").apply { mkdirs() }
+        val key = (file.absolutePath + "_" + file.lastModified() + "_" + file.length()).hashCode().toUInt().toString(16)
+        val cached = File(cacheDir, "$key.png")
+
+        if (cached.exists()) {
+            BitmapFactory.decodeFile(cached.absolutePath)?.let { imageView.setImageBitmap(it); return }
+        }
+
+        imageView.setImageResource(R.drawable.ic_geotrack)
+        Thread {
+            var localPfd: ParcelFileDescriptor? = null
+            var localRenderer: PdfRenderer? = null
+            try {
+                localPfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                localRenderer = PdfRenderer(localPfd)
+                if (localRenderer.pageCount > 0) {
+                    val page = localRenderer.openPage(0)
+                    val targetW = 180
+                    val targetH = ((page.height.toFloat() / page.width.toFloat()) * targetW).toInt().coerceIn(180, 260)
+                    val bmp = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+                    bmp.eraseColor(Color.WHITE)
+                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    page.close()
+                    runCatching { cached.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 88, it) } }
+                    runOnUiThread {
+                        if (imageView.isAttachedToWindow) imageView.setImageBitmap(bmp)
+                    }
+                }
+            } catch (_: Exception) {
+                // Mantém o logo como fallback caso algum PDF não gere miniatura.
+            } finally {
+                runCatching { localRenderer?.close() }
+                runCatching { localPfd?.close() }
+            }
+        }.start()
     }
 
     private fun importMaps(uris: List<Uri>, destination: File) {
