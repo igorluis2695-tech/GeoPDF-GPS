@@ -31,6 +31,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var map: MapView
     private lateinit var status: TextView
     private lateinit var mapTitle: TextView
+    private lateinit var followButton: TextView
+    private var followLocation = false
     private var geo: GeoReference? = null
     private var pfd: ParcelFileDescriptor? = null
     private var renderer: PdfRenderer? = null
@@ -366,6 +368,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val mapFrame = FrameLayout(this)
         map = MapView(this)
+        followLocation = false
         mapFrame.addView(map, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
 
         val controls = LinearLayout(this).apply {
@@ -374,7 +377,18 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         controls.addView(roundMapButton("+") { map.zoomIn() })
         controls.addView(roundMapButton("−") { map.zoomOut() })
-        controls.addView(roundMapButton("◎") { map.centerOnGps() })
+        followButton = roundMapButton("◎") {
+            followLocation = !followLocation
+            updateFollowButton()
+            if (followLocation) {
+                map.centerOnGps()
+                Toast.makeText(this, "Acompanhamento ativado", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Acompanhamento desativado", Toast.LENGTH_SHORT).show()
+            }
+        }
+        controls.addView(followButton)
+        updateFollowButton()
         val clp = FrameLayout.LayoutParams(dp(52), LinearLayout.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL)
         clp.setMargins(0, 0, dp(14), 0)
         mapFrame.addView(controls, clp)
@@ -457,6 +471,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val p = geo?.geoToPage(loc.latitude, loc.longitude)
         map.gpsNormalized = p
         map.accuracyMeters = loc.accuracy
+        if (followLocation && p != null) map.centerOnGps()
         if (::status.isInitialized) {
             status.text = String.format(Locale.US, "GPS %.0f m • %.6f, %.6f", loc.accuracy, loc.latitude, loc.longitude)
         }
@@ -471,6 +486,18 @@ class MainActivity : AppCompatActivity(), LocationListener {
         super.onDestroy()
         renderer?.close(); pfd?.close()
         (getSystemService(LOCATION_SERVICE) as LocationManager).removeUpdates(this)
+    }
+
+
+    private fun updateFollowButton() {
+        if (!::followButton.isInitialized) return
+        if (followLocation) {
+            followButton.setTextColor(Color.WHITE)
+            followButton.background = rounded(Color.rgb(20, 196, 92), 15f)
+        } else {
+            followButton.setTextColor(Color.rgb(30, 60, 36))
+            followButton.background = rounded(Color.argb(238, 255, 255, 255), 15f)
+        }
     }
 
     private fun actionButton(label: String, click: () -> Unit) = TextView(this).apply {
