@@ -40,7 +40,7 @@ class SplashActivity : Activity() {
         }
         val trackParams = FrameLayout.LayoutParams(dp(160), dp(7)).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            topMargin = (resources.displayMetrics.heightPixels * 0.603f).toInt()
+            topMargin = (resources.displayMetrics.heightPixels * 0.585f).toInt()
         }
         root.addView(track, trackParams)
 
@@ -51,7 +51,7 @@ class SplashActivity : Activity() {
         }
         val fillParams = FrameLayout.LayoutParams(dp(160), dp(7)).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            topMargin = (resources.displayMetrics.heightPixels * 0.603f).toInt()
+            topMargin = (resources.displayMetrics.heightPixels * 0.585f).toInt()
         }
         root.addView(fill, fillParams)
 
