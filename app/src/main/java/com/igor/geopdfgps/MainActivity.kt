@@ -99,10 +99,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 text = "‹"; textSize = 38f; gravity = Gravity.CENTER; setTextColor(Color.WHITE); setOnClickListener { showLibrary() }
             }, LinearLayout.LayoutParams(dp(44), dp(52)))
         } else {
-            header.addView(TextView(this).apply {
-                text = "⌖"; textSize = 28f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
-                background = rounded(Color.rgb(8, 92, 57), 14f)
-            }, LinearLayout.LayoutParams(dp(48), dp(48)))
+            header.addView(ImageView(this).apply {
+                setImageResource(com.igor.geopdfgps.R.drawable.ic_geotrack)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(58), dp(58)))
         }
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10),0,dp(8),0) }
         titles.addView(TextView(this).apply {
@@ -189,17 +189,74 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private fun safeFolderName(name:String)=name.trim().replace(Regex("[\\/:*?\"<>|]"),"_")
 
     private fun mapCard(file: File): View {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(14), dp(10), dp(14)); background = rounded(Color.WHITE, 18f, Color.rgb(222, 228, 223), 1); isClickable = true; setOnClickListener { openSavedMap(file) }
+        // Lista simples, no mesmo fundo escuro da tela: sem cartão branco.
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(12), dp(4), dp(12))
+            isClickable = true
+            setOnClickListener { openSavedMap(file) }
         }
-        val lp=LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT); lp.setMargins(0,0,0,dp(10)); card.layoutParams=lp
-        card.addView(TextView(this).apply { text="🗺"; textSize=31f; gravity=Gravity.CENTER; background=rounded(Color.rgb(20,92,55),14f) },LinearLayout.LayoutParams(dp(58),dp(58)))
-        val info=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(13),0,dp(8),0) }
-        info.addView(TextView(this).apply { text=file.nameWithoutExtension; maxLines=2; textSize=16f; setTextColor(Color.WHITE); setTypeface(typeface,Typeface.BOLD) })
-        info.addView(TextView(this).apply { text="GeoPDF • ${(file.length()/1024.0/1024.0).let { String.format(Locale.US,"%.1f MB",it) }}"; textSize=12f; setTextColor(Color.rgb(158,173,163)); setPadding(0,dp(4),0,0) })
-        card.addView(info,LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f))
-        card.addView(TextView(this).apply { text="⋮"; textSize=28f; gravity=Gravity.CENTER; setTextColor(Color.rgb(205,215,208)); setOnClickListener { PopupMenu(this@MainActivity,this).apply { menu.add("Abrir"); menu.add("Excluir mapa"); setOnMenuItemClickListener { item -> when(item.title.toString()) { "Abrir"->openSavedMap(file); "Excluir mapa"->confirmDelete(file) }; true }; show() } } },LinearLayout.LayoutParams(dp(44),dp(54)))
-        return card
+        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        row.layoutParams = lp
+
+        // Miniatura/ícone do mapa.
+        row.addView(TextView(this).apply {
+            text = "🗺"
+            textSize = 27f
+            gravity = Gravity.CENTER
+            background = rounded(Color.rgb(20, 92, 55), 12f)
+        }, LinearLayout.LayoutParams(dp(54), dp(54)))
+
+        val info = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), 0, dp(8), 0)
+        }
+        info.addView(TextView(this).apply {
+            // O nome do próprio PDF é o nome da fazenda/mapa.
+            text = file.nameWithoutExtension
+            maxLines = 2
+            textSize = 17f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.NORMAL)
+        })
+        info.addView(TextView(this).apply {
+            text = (file.length() / 1024.0 / 1024.0).let { String.format(Locale.US, "%.1f MB", it) }
+            textSize = 13f
+            setTextColor(Color.rgb(158, 173, 163))
+            setPadding(0, dp(4), 0, 0)
+        })
+        row.addView(info, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+        row.addView(TextView(this).apply {
+            text = "⋮"
+            textSize = 28f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(205, 215, 208))
+            setOnClickListener {
+                PopupMenu(this@MainActivity, this).apply {
+                    menu.add("Abrir")
+                    menu.add("Excluir mapa")
+                    setOnMenuItemClickListener { item ->
+                        when (item.title.toString()) {
+                            "Abrir" -> openSavedMap(file)
+                            "Excluir mapa" -> confirmDelete(file)
+                        }
+                        true
+                    }
+                    show()
+                }
+            }
+        }, LinearLayout.LayoutParams(dp(44), dp(54)))
+
+        // Linha divisória discreta, como no exemplo enviado.
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(row)
+            addView(View(this@MainActivity).apply { setBackgroundColor(Color.rgb(43, 50, 46)) },
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)))
+        }
+        return wrap
     }
 
     private fun importMaps(uris: List<Uri>, destination: File) {
