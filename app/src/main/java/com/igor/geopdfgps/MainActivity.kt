@@ -117,13 +117,140 @@ class MainActivity : AppCompatActivity(), LocationListener {
             text = if (rootScreen) "SEUS MAPAS, SEMPRE COM VOCÊ." else subtitle; textSize = if(rootScreen) 10f else 13f; letterSpacing = if(rootScreen) .16f else 0f; setTextColor(Color.rgb(166,181,171))
         })
         header.addView(titles, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        if (rootScreen) header.addView(actionButton("+  NOVA PASTA") { createFolderDialog() })
-        else header.addView(actionButton("+  MAPAS") { picker.launch(arrayOf("application/pdf")) })
+        if (rootScreen) {
+            header.addView(TextView(this).apply {
+                text = "⋮"
+                textSize = 28f
+                gravity = Gravity.CENTER
+                setTextColor(Color.rgb(205, 215, 208))
+                contentDescription = "Menu"
+                setOnClickListener {
+                    PopupMenu(this@MainActivity, this).apply {
+                        menu.add("Sobre o GeoTrack")
+                        setOnMenuItemClickListener { item ->
+                            if (item.title.toString() == "Sobre o GeoTrack") showAboutScreen()
+                            true
+                        }
+                        show()
+                    }
+                }
+            }, LinearLayout.LayoutParams(dp(42), dp(52)))
+            header.addView(actionButton("+  NOVA PASTA") { createFolderDialog() })
+        } else header.addView(actionButton("+  MAPAS") { picker.launch(arrayOf("application/pdf")) })
         wrap.addView(header)
         if (rootScreen) wrap.addView(TextView(this).apply {
             text = "Meus Mapas"; textSize = 18f; setTypeface(typeface,Typeface.BOLD); setTextColor(Color.WHITE); setPadding(dp(4),dp(20),0,dp(4))
         })
         return wrap
+    }
+
+    private fun showAboutScreen() {
+        currentMap = null
+        currentFolder = null
+        root.removeAllViews()
+        root.setBackgroundColor(Color.rgb(12, 18, 15))
+
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(18), dp(22), dp(24))
+        }
+
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        top.addView(TextView(this).apply {
+            text = "‹"
+            textSize = 38f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setOnClickListener { showLibrary() }
+        }, LinearLayout.LayoutParams(dp(44), dp(52)))
+        top.addView(TextView(this).apply {
+            text = "Sobre o GeoTrack"
+            textSize = 22f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(dp(8), 0, 0, 0)
+        })
+        page.addView(top)
+
+        val scroll = ScrollView(this)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(14), dp(34), dp(14), dp(30))
+        }
+        content.addView(ImageView(this).apply {
+            setImageResource(R.drawable.ic_geotrack)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }, LinearLayout.LayoutParams(dp(112), dp(112)))
+        content.addView(TextView(this).apply {
+            text = "GeoTrack"
+            textSize = 29f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(14), 0, dp(3))
+        })
+        content.addView(TextView(this).apply {
+            text = "MAPAS OFFLINE • SEMPRE COM VOCÊ"
+            textSize = 11f
+            letterSpacing = .10f
+            setTextColor(Color.rgb(83, 214, 119))
+            gravity = Gravity.CENTER
+        })
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(20), dp(20), dp(20))
+            background = rounded(Color.rgb(20, 29, 24), 18f, Color.rgb(42, 58, 48), 1)
+        }
+        val cardLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(0, dp(30), 0, 0)
+        }
+        content.addView(card, cardLp)
+
+        card.addView(TextView(this).apply {
+            text = "Sobre o aplicativo"
+            textSize = 17f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        card.addView(TextView(this).apply {
+            text = "O GeoTrack foi desenvolvido para facilitar a navegação em campo utilizando mapas GeoPDF georreferenciados. O aplicativo permite visualizar sua localização em tempo real, acompanhar o deslocamento, identificar a direção do movimento e registrar o rastro do percurso, mesmo utilizando mapas offline."
+            textSize = 14f
+            setTextColor(Color.rgb(190, 204, 195))
+            setLineSpacing(0f, 1.18f)
+            setPadding(0, dp(10), 0, dp(22))
+        })
+        card.addView(TextView(this).apply {
+            text = "Versão 1.7.9"
+            textSize = 13f
+            setTextColor(Color.rgb(145, 163, 151))
+            setPadding(0, 0, 0, dp(22))
+        })
+        card.addView(TextView(this).apply {
+            text = "Desenvolvido por"
+            textSize = 12f
+            setTextColor(Color.rgb(145, 163, 151))
+        })
+        card.addView(TextView(this).apply {
+            text = "Igor Luis Corrêa de Oliveira"
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(4), 0, dp(4))
+        })
+        card.addView(TextView(this).apply {
+            text = "Setor de Topografia"
+            textSize = 13f
+            setTextColor(Color.rgb(83, 214, 119))
+        })
+
+        scroll.addView(content)
+        page.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(page, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
     }
 
     private fun sectionLabel(label: String) = TextView(this).apply {
