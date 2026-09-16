@@ -13,6 +13,19 @@ class MapView(context: Context) : View(context) {
     var gpsNormalized: Pair<Double, Double>? = null
         set(v) { field = v; invalidate() }
     var accuracyMeters: Float? = null
+    var bearingDegrees: Float? = null
+        set(v) { field = v; invalidate() }
+    private val trail = mutableListOf<Pair<Double, Double>>()
+
+    fun clearTrail() { trail.clear(); invalidate() }
+    fun hasTrail(): Boolean = trail.isNotEmpty()
+    fun addTrailPoint(p: Pair<Double, Double>) {
+        if (p.first in -0.05..1.05 && p.second in -0.05..1.05) {
+            trail.add(p)
+            if (trail.size > 10000) trail.removeAt(0)
+            invalidate()
+        }
+    }
 
     private var scale = 1f
     private var tx = 0f
@@ -81,17 +94,53 @@ class MapView(context: Context) : View(context) {
         c.translate(-width / 2f, -height / 2f)
         c.drawBitmap(b, null, RectF(ox, oy, ox + dw, oy + dh), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
 
+        // Rastro da sessão atual.
+        if (trail.size > 1) {
+            val path = Path()
+            trail.forEachIndexed { index, p ->
+                val x = ox + (p.first * dw).toFloat()
+                val y = oy + ((1.0 - p.second) * dh).toFloat()
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            val trailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 5f / scale
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+                color = Color.rgb(20, 196, 92)
+            }
+            c.drawPath(path, trailPaint)
+        }
+
         gpsNormalized?.let { p ->
             val x = ox + (p.first * dw).toFloat()
             val y = oy + ((1.0 - p.second) * dh).toFloat()
             val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.argb(45, 33, 150, 243) }
             c.drawCircle(x, y, 34f / scale, halo)
-            val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f / scale; color = Color.rgb(25, 118, 210) }
-            c.drawCircle(x, y, 17f / scale, ring)
-            val border = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.WHITE }
-            c.drawCircle(x, y, 11f / scale, border)
-            val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.rgb(25, 118, 210) }
-            c.drawCircle(x, y, 7f / scale, dot)
+
+            // Seta aponta para o rumo informado pelo GPS. Se ainda não houver rumo, mantém o ponto azul.
+            val bearing = bearingDegrees
+            if (bearing != null) {
+                c.save()
+                c.rotate(bearing, x, y)
+                val arrow = Path().apply {
+                    moveTo(x, y - 20f / scale)
+                    lineTo(x - 12f / scale, y + 14f / scale)
+                    lineTo(x, y + 9f / scale)
+                    lineTo(x + 12f / scale, y + 14f / scale)
+                    close()
+                }
+                val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 5f / scale; strokeJoin = Paint.Join.ROUND; color = Color.WHITE }
+                val arrowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.rgb(25, 118, 210) }
+                c.drawPath(arrow, borderPaint)
+                c.drawPath(arrow, arrowPaint)
+                c.restore()
+            } else {
+                val border = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.WHITE }
+                c.drawCircle(x, y, 11f / scale, border)
+                val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.rgb(25, 118, 210) }
+                c.drawCircle(x, y, 7f / scale, dot)
+            }
         }
         c.restore()
     }

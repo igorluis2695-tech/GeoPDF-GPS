@@ -32,7 +32,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var status: TextView
     private lateinit var mapTitle: TextView
     private lateinit var followButton: TextView
+    private lateinit var trailButton: TextView
     private var followLocation = false
+    private var recordingTrail = false
     private var geo: GeoReference? = null
     private var pfd: ParcelFileDescriptor? = null
     private var renderer: PdfRenderer? = null
@@ -369,6 +371,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val mapFrame = FrameLayout(this)
         map = MapView(this)
         followLocation = false
+        recordingTrail = false
         mapFrame.addView(map, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
 
         val controls = LinearLayout(this).apply {
@@ -388,7 +391,38 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
         controls.addView(followButton)
+        trailButton = roundMapButton("〰") {
+            recordingTrail = !recordingTrail
+            updateTrailButton()
+            if (recordingTrail) {
+                map.clearTrail()
+                map.gpsNormalized?.let { map.addTrailPoint(it) }
+                Toast.makeText(this, "Rastro iniciado", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Rastro finalizado", Toast.LENGTH_SHORT).show()
+            }
+        }
+        trailButton.setOnLongClickListener {
+            if (map.hasTrail()) {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Rastro do percurso")
+                    .setMessage("Deseja apagar o rastro atual?")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Apagar") { _, _ ->
+                        recordingTrail = false
+                        map.clearTrail()
+                        updateTrailButton()
+                        Toast.makeText(this, "Rastro apagado", Toast.LENGTH_SHORT).show()
+                    }
+                    .show()
+            } else {
+                Toast.makeText(this, "Nenhum rastro para apagar", Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
+        controls.addView(trailButton)
         updateFollowButton()
+        updateTrailButton()
         val clp = FrameLayout.LayoutParams(dp(52), LinearLayout.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL)
         clp.setMargins(0, 0, dp(14), 0)
         mapFrame.addView(controls, clp)
@@ -471,6 +505,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val p = geo?.geoToPage(loc.latitude, loc.longitude)
         map.gpsNormalized = p
         map.accuracyMeters = loc.accuracy
+        map.bearingDegrees = if (loc.hasBearing() && (loc.hasSpeed().not() || loc.speed >= 0.4f)) loc.bearing else null
+        if (recordingTrail && p != null) map.addTrailPoint(p)
         if (followLocation && p != null) map.centerOnGps()
         if (::status.isInitialized) {
             status.text = String.format(Locale.US, "GPS %.0f m • %.6f, %.6f", loc.accuracy, loc.latitude, loc.longitude)
@@ -497,6 +533,17 @@ class MainActivity : AppCompatActivity(), LocationListener {
         } else {
             followButton.setTextColor(Color.rgb(30, 60, 36))
             followButton.background = rounded(Color.argb(238, 255, 255, 255), 15f)
+        }
+    }
+
+    private fun updateTrailButton() {
+        if (!::trailButton.isInitialized) return
+        if (recordingTrail) {
+            trailButton.setTextColor(Color.WHITE)
+            trailButton.background = rounded(Color.rgb(20, 196, 92), 15f)
+        } else {
+            trailButton.setTextColor(Color.rgb(30, 60, 36))
+            trailButton.background = rounded(Color.argb(238, 255, 255, 255), 15f)
         }
     }
 
