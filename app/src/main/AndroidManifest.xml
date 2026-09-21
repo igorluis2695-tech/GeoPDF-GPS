@@ -1,12 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
     <application
         android:allowBackup="true"
         android:label="GeoTrack"
         android:icon="@drawable/ic_geotrack"
         android:roundIcon="@drawable/ic_geotrack"
-        android:theme="@style/Theme.GeoPdfGps">
+        android:theme="@style/Theme.GeoPdfGps"
+        android:usesCleartextTraffic="true">
         <activity android:name=".SplashActivity" android:screenOrientation="portrait" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -14,5 +17,6 @@
             </intent-filter>
         </activity>
         <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".TransferMapsActivity" android:screenOrientation="portrait" android:exported="false" />
     </application>
 </manifest>

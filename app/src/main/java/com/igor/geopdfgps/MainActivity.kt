@@ -126,9 +126,13 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 contentDescription = "Menu"
                 setOnClickListener {
                     PopupMenu(this@MainActivity, this).apply {
+                        menu.add("Transferir mapas")
                         menu.add("Sobre o GeoTrack")
                         setOnMenuItemClickListener { item ->
-                            if (item.title.toString() == "Sobre o GeoTrack") showAboutScreen()
+                            when (item.title.toString()) {
+                                "Transferir mapas" -> startActivity(Intent(this@MainActivity, TransferMapsActivity::class.java))
+                                "Sobre o GeoTrack" -> showAboutScreen()
+                            }
                             true
                         }
                         show()
@@ -225,7 +229,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             setPadding(0, dp(10), 0, dp(22))
         })
         card.addView(TextView(this).apply {
-            text = "Versão 1.7.9"
+            text = "Versão 1.8.0"
             textSize = 13f
             setTextColor(Color.rgb(145, 163, 151))
             setPadding(0, 0, 0, dp(22))
