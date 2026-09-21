@@ -177,7 +177,7 @@ class TransferMapsActivity : AppCompatActivity() {
 
     private fun sanitize(name:String)=name.replace(Regex("[\\\\/:*?\"<>|]"),"_").trim().ifBlank{"Mapa.pdf"}
     private fun uniqueFile(dir:File,name:String):File { var f=File(dir,name); if(!f.exists()) return f; val base=f.nameWithoutExtension; val ext=f.extension; var n=2; while(f.exists()){ f=File(dir,"$base ($n).$ext"); n++ }; return f }
-    private fun bigButton(label:String, click:()->Unit)=TextView(this).apply { text=label; textSize=14f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setTypeface(typeface,Typeface.BOLD); setPadding(dp(18),dp(16),dp(18),dp(16)); background=rounded(Color.rgb(20,196,92),14f); setOnClickListener{click()} }
+    private fun bigButton(label:String, click:()->Unit)=TextView(this).apply { text=label; textSize=14f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setTypeface(typeface,Typeface.BOLD); setPadding(dp(18),dp(16),dp(18),dp(16)); background=rounded(Color.rgb(20,196,92),14); setOnClickListener{click()} }
     private fun space(h:Int)=Space(this).apply{ layoutParams=LinearLayout.LayoutParams(1,dp(h)) }
     private fun rounded(fill:Int,radius:Int)=GradientDrawable().apply{ shape=GradientDrawable.RECTANGLE; setColor(fill); cornerRadius=dp(radius).toFloat() }
     private fun dp(v:Int)=(v*resources.displayMetrics.density).toInt()
