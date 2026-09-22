@@ -24,6 +24,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.net.URL
 import java.util.Locale
 
 class MainActivity : AppCompatActivity(), LocationListener {
@@ -33,6 +34,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var mapTitle: TextView
     private lateinit var followButton: TextView
     private lateinit var trailButton: TextView
+    private lateinit var satelliteButton: TextView
+    private var satelliteEnabled = false
     private var followLocation = false
     private var recordingTrail = false
     private var geo: GeoReference? = null
@@ -503,6 +506,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         map = MapView(this)
         followLocation = false
         recordingTrail = false
+        satelliteEnabled = false
         mapFrame.addView(map, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
 
         val controls = LinearLayout(this).apply {
@@ -552,8 +556,21 @@ class MainActivity : AppCompatActivity(), LocationListener {
             true
         }
         controls.addView(trailButton)
+        satelliteButton = roundMapButton("🛰") {
+            satelliteEnabled = !satelliteEnabled
+            map.satelliteEnabled = satelliteEnabled
+            updateSatelliteButton()
+            if (satelliteEnabled) {
+                loadSatelliteForCurrentMap()
+                showTransparencyControl(mapFrame)
+            } else {
+                Toast.makeText(this, "Satélite desativado", Toast.LENGTH_SHORT).show()
+            }
+        }
+        controls.addView(satelliteButton)
         updateFollowButton()
         updateTrailButton()
+        updateSatelliteButton()
         val clp = FrameLayout.LayoutParams(dp(52), LinearLayout.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL)
         clp.setMargins(0, 0, dp(14), 0)
         mapFrame.addView(controls, clp)
@@ -655,6 +672,91 @@ class MainActivity : AppCompatActivity(), LocationListener {
         (getSystemService(LOCATION_SERVICE) as LocationManager).removeUpdates(this)
     }
 
+
+    private fun updateSatelliteButton() {
+        if (!::satelliteButton.isInitialized) return
+        if (satelliteEnabled) {
+            satelliteButton.setTextColor(Color.WHITE)
+            satelliteButton.background = rounded(Color.rgb(20, 196, 92), 15f)
+        } else {
+            satelliteButton.setTextColor(Color.rgb(30, 60, 36))
+            satelliteButton.background = rounded(Color.argb(238, 255, 255, 255), 15f)
+        }
+    }
+
+    private fun loadSatelliteForCurrentMap() {
+        val g = geo ?: run {
+            Toast.makeText(this, "GeoPDF sem georreferência compatível", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val corners = listOf(
+            g.pageToGeo(0.0, 0.0), g.pageToGeo(1.0, 0.0),
+            g.pageToGeo(1.0, 1.0), g.pageToGeo(0.0, 1.0)
+        ).filterNotNull()
+        if (corners.size < 4) return
+        val minLat = corners.minOf { it.first }; val maxLat = corners.maxOf { it.first }
+        val minLon = corners.minOf { it.second }; val maxLon = corners.maxOf { it.second }
+        status.text = "Carregando satélite..."
+        Thread {
+            try {
+                val w = 1600
+                val h = ((map.bitmap?.height ?: 1200).toDouble() / (map.bitmap?.width ?: 1600) * w).toInt().coerceIn(700, 2000)
+                val u = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export" +
+                        "?bbox=$minLon,$minLat,$maxLon,$maxLat&bboxSR=4326&imageSR=4326" +
+                        "&size=$w,$h&format=png32&transparent=false&f=image"
+                val conn = URL(u).openConnection().apply {
+                    connectTimeout = 12000; readTimeout = 20000
+                    setRequestProperty("User-Agent", "GeoTrack/1.9")
+                }
+                val bmp = conn.getInputStream().use { BitmapFactory.decodeStream(it) }
+                runOnUiThread {
+                    if (satelliteEnabled && bmp != null) {
+                        map.satelliteBitmap = bmp
+                        map.satelliteEnabled = true
+                        status.text = "Satélite ativo • ajuste a transparência"
+                    } else if (bmp == null) {
+                        status.text = "Não foi possível carregar o satélite"
+                    }
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    status.text = "Satélite indisponível • verifique a internet"
+                    Toast.makeText(this, "Não foi possível carregar a imagem de satélite", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun showTransparencyControl(mapFrame: FrameLayout) {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = rounded(Color.argb(242, 20, 28, 23), 16f)
+        }
+        val title = TextView(this).apply {
+            text = "Transparência do GeoPDF"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+        }
+        val seek = SeekBar(this).apply {
+            max = 100
+            progress = 55
+            map.pdfAlpha = (255 * 0.55f).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, value: Int, fromUser: Boolean) {
+                    map.pdfAlpha = (255 * (value.coerceAtLeast(15) / 100f)).toInt()
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+        }
+        panel.addView(title)
+        panel.addView(seek, LinearLayout.LayoutParams(dp(230), dp(40)))
+        val lp = FrameLayout.LayoutParams(dp(260), LinearLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+        lp.setMargins(0, 0, 0, dp(14))
+        mapFrame.addView(panel, lp)
+        panel.postDelayed({ if (panel.parent != null) mapFrame.removeView(panel) }, 6500L)
+    }
 
     private fun updateFollowButton() {
         if (!::followButton.isInitialized) return

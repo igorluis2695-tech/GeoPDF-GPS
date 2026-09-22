@@ -4,6 +4,18 @@ data class GeoReference(
     val lpts: List<Pair<Double, Double>>,
     val gpts: List<Pair<Double, Double>>
 ) {
+    fun pageToGeo(x: Double, y: Double): Pair<Double, Double>? {
+        if (lpts.size < 3 || gpts.size < 3) return null
+        val n = minOf(lpts.size, gpts.size)
+        val a = Array(n) { i -> doubleArrayOf(lpts[i].first, lpts[i].second, 1.0) }
+        val lat = DoubleArray(n) { gpts[it].first }
+        val lon = DoubleArray(n) { gpts[it].second }
+        val clat = leastSquares3(a, lat) ?: return null
+        val clon = leastSquares3(a, lon) ?: return null
+        return (clat[0] * x + clat[1] * y + clat[2]) to
+               (clon[0] * x + clon[1] * y + clon[2])
+    }
+
     fun geoToPage(latitude: Double, longitude: Double): Pair<Double, Double>? {
         if (lpts.size < 3 || gpts.size < 3) return null
         // GPTS in ISO geospatial PDF is usually [lat, lon]. Fit affine transform geo -> normalized PDF coords.

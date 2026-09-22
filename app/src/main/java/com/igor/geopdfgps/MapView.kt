@@ -10,6 +10,12 @@ import kotlin.math.min
 class MapView(context: Context) : View(context) {
     var bitmap: Bitmap? = null
         set(v) { field = v; reset(); invalidate() }
+    var satelliteBitmap: Bitmap? = null
+        set(v) { field = v; invalidate() }
+    var satelliteEnabled: Boolean = false
+        set(v) { field = v; invalidate() }
+    var pdfAlpha: Int = 255
+        set(v) { field = v.coerceIn(40, 255); invalidate() }
     var gpsNormalized: Pair<Double, Double>? = null
         set(v) { field = v; invalidate() }
     var accuracyMeters: Float? = null
@@ -92,7 +98,16 @@ class MapView(context: Context) : View(context) {
         c.translate(width / 2f + tx, height / 2f + ty)
         c.scale(scale, scale)
         c.translate(-width / 2f, -height / 2f)
-        c.drawBitmap(b, null, RectF(ox, oy, ox + dw, oy + dh), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        val mapRect = RectF(ox, oy, ox + dw, oy + dh)
+        if (satelliteEnabled) {
+            satelliteBitmap?.let { sat ->
+                c.drawBitmap(sat, null, mapRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+            }
+        }
+        val pdfPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+            alpha = if (satelliteEnabled) pdfAlpha else 255
+        }
+        c.drawBitmap(b, null, mapRect, pdfPaint)
 
         // Rastro da sessão atual.
         if (trail.size > 1) {
