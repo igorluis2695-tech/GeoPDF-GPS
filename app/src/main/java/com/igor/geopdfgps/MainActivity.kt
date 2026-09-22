@@ -6,6 +6,9 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.pdf.PdfRenderer
@@ -38,6 +41,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private var satelliteEnabled = false
     private var followLocation = false
     private var recordingTrail = false
+    @Volatile private var lastKnownLocation: Location? = null
+    private val geoCache = java.util.concurrent.ConcurrentHashMap<String, GeoReference>()
+    private val distanceBindings = mutableListOf<Pair<File, TextView>>()
+    private var lastDistanceRefresh = 0L
     private var geo: GeoReference? = null
     private var pfd: ParcelFileDescriptor? = null
     private var renderer: PdfRenderer? = null
@@ -68,6 +75,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     private fun showLibrary() {
         currentMap = null
+        distanceBindings.clear()
         currentFolder = null
         root.removeAllViews()
         root.setBackgroundColor(Color.rgb(12, 18, 15))
@@ -232,7 +240,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             setPadding(0, dp(10), 0, dp(22))
         })
         card.addView(TextView(this).apply {
-            text = "Versão 1.8.0"
+            text = "Versão 1.9.1"
             textSize = 13f
             setTextColor(Color.rgb(145, 163, 151))
             setPadding(0, 0, 0, dp(22))
@@ -295,7 +303,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun showFolder(folder: File) {
-        currentMap = null; currentFolder = folder; root.removeAllViews(); root.setBackgroundColor(Color.rgb(12,18,15))
+        currentMap = null; currentFolder = folder; distanceBindings.clear(); root.removeAllViews(); root.setBackgroundColor(Color.rgb(12,18,15))
         val page = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(18),dp(18),dp(18)) }
         val files = folder.listFiles { f -> f.isFile && f.extension.equals("pdf",true) }?.sortedBy { it.name.lowercase(Locale.getDefault()) } ?: emptyList()
         page.addView(libraryHeader(folder.name, if(files.size==1) "1 mapa" else "${files.size} mapas", false))
@@ -366,6 +374,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
             setTextColor(Color.rgb(158, 173, 163))
             setPadding(0, dp(4), 0, 0)
         })
+        val distanceView = TextView(this).apply {
+            text = "📍 calculando..."
+            textSize = 13f
+            setTextColor(Color.rgb(83, 214, 119))
+            setPadding(0, dp(4), 0, 0)
+        }
+        info.addView(distanceView)
+        distanceBindings.add(file to distanceView)
+        updateMapDistance(file, distanceView)
         row.addView(info, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
 
         row.addView(TextView(this).apply {
@@ -649,7 +666,18 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     override fun onLocationChanged(loc: Location) {
-        if (!::map.isInitialized || currentMap == null) return
+        lastKnownLocation = loc
+        if (currentMap == null) {
+            val now = System.currentTimeMillis()
+            if (now - lastDistanceRefresh > 5000L) {
+                lastDistanceRefresh = now
+                distanceBindings.toList().forEach { (file, view) ->
+                    if (view.isAttachedToWindow) updateMapDistance(file, view)
+                }
+            }
+            return
+        }
+        if (!::map.isInitialized) return
         val p = geo?.geoToPage(loc.latitude, loc.longitude)
         map.gpsNormalized = p
         map.accuracyMeters = loc.accuracy
@@ -689,32 +717,37 @@ class MainActivity : AppCompatActivity(), LocationListener {
             Toast.makeText(this, "GeoPDF sem georreferência compatível", Toast.LENGTH_SHORT).show()
             return
         }
-        val corners = listOf(
-            g.pageToGeo(0.0, 0.0), g.pageToGeo(1.0, 0.0),
-            g.pageToGeo(1.0, 1.0), g.pageToGeo(0.0, 1.0)
-        ).filterNotNull()
-        if (corners.size < 4) return
-        val minLat = corners.minOf { it.first }; val maxLat = corners.maxOf { it.first }
-        val minLon = corners.minOf { it.second }; val maxLon = corners.maxOf { it.second }
+        // Use os pontos georreferenciados reais do GeoPDF. A imagem baixada é norte-acima
+        // e depois é transformada para o sistema da página, evitando deslocamento/rotação.
+        val minLat = g.gpts.minOfOrNull { it.first } ?: return
+        val maxLat = g.gpts.maxOfOrNull { it.first } ?: return
+        val minLon = g.gpts.minOfOrNull { it.second } ?: return
+        val maxLon = g.gpts.maxOfOrNull { it.second } ?: return
         status.text = "Carregando satélite..."
         Thread {
             try {
-                val w = 1600
-                val h = ((map.bitmap?.height ?: 1200).toDouble() / (map.bitmap?.width ?: 1600) * w).toInt().coerceIn(700, 2000)
+                val w = 1800
+                val latMid = Math.toRadians((minLat + maxLat) / 2.0)
+                val geoRatio = ((maxLat - minLat) / ((maxLon - minLon) * kotlin.math.cos(latMid))).let { kotlin.math.abs(it) }
+                val h = (w * geoRatio).toInt().coerceIn(700, 2200)
                 val u = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export" +
                         "?bbox=$minLon,$minLat,$maxLon,$maxLat&bboxSR=4326&imageSR=4326" +
-                        "&size=$w,$h&format=png32&transparent=false&f=image"
+                        "&size=$w,$h&format=jpg&f=image"
                 val conn = URL(u).openConnection().apply {
                     connectTimeout = 12000; readTimeout = 20000
-                    setRequestProperty("User-Agent", "GeoTrack/1.9")
+                    setRequestProperty("User-Agent", "GeoTrack/1.9.1")
                 }
-                val bmp = conn.getInputStream().use { BitmapFactory.decodeStream(it) }
+                val raw = conn.getInputStream().use { BitmapFactory.decodeStream(it) }
+                val pdf = map.bitmap
+                val aligned = if (raw != null && pdf != null) alignSatelliteToPdf(raw, g, pdf.width, pdf.height, minLat, maxLat, minLon, maxLon) else null
                 runOnUiThread {
-                    if (satelliteEnabled && bmp != null) {
-                        map.satelliteBitmap = bmp
+                    if (satelliteEnabled && aligned != null) {
+                        map.satelliteBitmap = aligned
                         map.satelliteEnabled = true
-                        status.text = "Satélite ativo • ajuste a transparência"
-                    } else if (bmp == null) {
+                        // Satélite mais visível por padrão: GeoPDF em 40%.
+                        map.pdfAlpha = (255 * 0.40f).toInt()
+                        status.text = "Satélite ativo • alinhado ao GeoPDF"
+                    } else if (aligned == null) {
                         status.text = "Não foi possível carregar o satélite"
                     }
                 }
@@ -725,6 +758,90 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 }
             }
         }.start()
+    }
+
+    private fun alignSatelliteToPdf(
+        src: Bitmap, g: GeoReference, outW: Int, outH: Int,
+        minLat: Double, maxLat: Double, minLon: Double, maxLon: Double
+    ): Bitmap? {
+        val nw = g.geoToPage(maxLat, minLon) ?: return null
+        val ne = g.geoToPage(maxLat, maxLon) ?: return null
+        val sw = g.geoToPage(minLat, minLon) ?: return null
+        val dst = floatArrayOf(
+            (nw.first * outW).toFloat(), ((1.0 - nw.second) * outH).toFloat(),
+            (ne.first * outW).toFloat(), ((1.0 - ne.second) * outH).toFloat(),
+            (sw.first * outW).toFloat(), ((1.0 - sw.second) * outH).toFloat()
+        )
+        val srcPts = floatArrayOf(0f, 0f, src.width.toFloat(), 0f, 0f, src.height.toFloat())
+        val matrix = Matrix()
+        if (!matrix.setPolyToPoly(srcPts, 0, dst, 0, 3)) return null
+        return Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888).also { out ->
+            val canvas = Canvas(out)
+            canvas.drawColor(Color.TRANSPARENT)
+            canvas.drawBitmap(src, matrix, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        }
+    }
+
+    private fun updateMapDistance(file: File, view: TextView) {
+        val loc = lastKnownLocation
+        if (loc == null) {
+            view.text = "📍 aguardando GPS..."
+            return
+        }
+        Thread {
+            val g = geoCache[file.absolutePath] ?: runCatching {
+                GeoPdfParser.parse(this, Uri.fromFile(file))
+            }.getOrNull()?.also { geoCache[file.absolutePath] = it }
+            val meters = g?.let { distanceToGeoPdfMeters(loc.latitude, loc.longitude, it) }
+            runOnUiThread {
+                if (!view.isAttachedToWindow) return@runOnUiThread
+                view.text = if (meters == null) "📍 distância indisponível" else "📍 ${formatDistance(meters)}"
+            }
+        }.start()
+    }
+
+    private fun distanceToGeoPdfMeters(lat: Double, lon: Double, g: GeoReference): Float {
+        val p = g.geoToPage(lat, lon)
+        val poly = g.lpts
+        if (p != null && pointInPolygon(p, poly)) return 0f
+        var best = Float.MAX_VALUE
+        val result = FloatArray(1)
+        if (poly.size < 2) return best
+        val steps = 20
+        for (j in poly.indices) {
+            val a = poly[j]
+            val b = poly[(j + 1) % poly.size]
+            for (i in 0..steps) {
+                val t = i.toDouble() / steps
+                val pageX = a.first + (b.first - a.first) * t
+                val pageY = a.second + (b.second - a.second) * t
+                val gp = g.pageToGeo(pageX, pageY) ?: continue
+                Location.distanceBetween(lat, lon, gp.first, gp.second, result)
+                if (result[0] < best) best = result[0]
+            }
+        }
+        return best
+    }
+
+    private fun pointInPolygon(p: Pair<Double, Double>, poly: List<Pair<Double, Double>>): Boolean {
+        if (poly.size < 3) return false
+        var inside = false
+        var j = poly.lastIndex
+        for (i in poly.indices) {
+            val xi = poly[i].first; val yi = poly[i].second
+            val xj = poly[j].first; val yj = poly[j].second
+            val crosses = ((yi > p.second) != (yj > p.second)) &&
+                    (p.first < (xj - xi) * (p.second - yi) / ((yj - yi).takeIf { kotlin.math.abs(it) > 1e-12 } ?: 1e-12) + xi)
+            if (crosses) inside = !inside
+            j = i
+        }
+        return inside
+    }
+
+    private fun formatDistance(meters: Float): String = if (meters < 1000f) {
+        "${meters.toInt()} m"
+    } else {
+        String.format(Locale.getDefault(), "%.1f km", meters / 1000f)
     }
 
     private fun showTransparencyControl(mapFrame: FrameLayout) {
@@ -740,8 +857,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         val seek = SeekBar(this).apply {
             max = 100
-            progress = 55
-            map.pdfAlpha = (255 * 0.55f).toInt()
+            progress = 40
+            map.pdfAlpha = (255 * 0.40f).toInt()
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, value: Int, fromUser: Boolean) {
                     map.pdfAlpha = (255 * (value.coerceAtLeast(15) / 100f)).toInt()
