@@ -41,15 +41,62 @@ class MapView(context: Context) : View(context) {
 
     private val detector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(d: ScaleGestureDetector): Boolean {
-            scale = (scale * d.scaleFactor).coerceIn(1f, 15f)
-            invalidate()
+            zoomAround(d.scaleFactor, d.focusX, d.focusY)
             return true
         }
     })
 
     fun reset() { scale = 1f; tx = 0f; ty = 0f; invalidate() }
-    fun zoomIn() { scale = (scale * 1.45f).coerceAtMost(15f); invalidate() }
-    fun zoomOut() { scale = (scale / 1.45f).coerceAtLeast(1f); invalidate() }
+
+    // Mantém a coordenada que está sob o ponto de foco no mesmo lugar da tela.
+    // Isso evita o "salto" do mapa ao usar pinça ou os botões +/-.
+    private fun zoomAround(factor: Float, focusX: Float, focusY: Float) {
+        if (width <= 0 || height <= 0) return
+        val oldScale = scale
+        val newScale = (oldScale * factor).coerceIn(1f, 15f)
+        if (newScale == oldScale) return
+        val ratio = newScale / oldScale
+        val cx = width / 2f
+        val cy = height / 2f
+        tx = ratio * tx + (1f - ratio) * (focusX - cx)
+        ty = ratio * ty + (1f - ratio) * (focusY - cy)
+        scale = newScale
+        clampTranslation()
+        invalidate()
+    }
+
+    fun zoomIn() { zoomAround(1.45f, width / 2f, height / 2f) }
+    fun zoomOut() { zoomAround(1f / 1.45f, width / 2f, height / 2f) }
+
+    private fun clampTranslation() {
+        val b = bitmap ?: return
+        if (width <= 0 || height <= 0) return
+        val fit = min(width.toFloat() / b.width, height.toFloat() / b.height)
+        val dw = b.width * fit
+        val dh = b.height * fit
+        val ox = (width - dw) / 2f
+        val oy = (height - dh) / 2f
+        val cx = width / 2f
+        val cy = height / 2f
+
+        val scaledW = dw * scale
+        if (scaledW <= width) {
+            tx = 0f
+        } else {
+            val minTx = width - cx - scale * (ox + dw - cx)
+            val maxTx = -cx - scale * (ox - cx)
+            tx = tx.coerceIn(minTx, maxTx)
+        }
+
+        val scaledH = dh * scale
+        if (scaledH <= height) {
+            ty = 0f
+        } else {
+            val minTy = height - cy - scale * (oy + dh - cy)
+            val maxTy = -cy - scale * (oy - cy)
+            ty = ty.coerceIn(minTy, maxTy)
+        }
+    }
 
     fun centerOnGps() {
         val b = bitmap ?: return
@@ -65,6 +112,7 @@ class MapView(context: Context) : View(context) {
         val y = oy + ((1.0 - p.second) * dh).toFloat()
         tx = -scale * (x - width / 2f)
         ty = -scale * (y - height / 2f)
+        clampTranslation()
         invalidate()
     }
 
@@ -78,6 +126,7 @@ class MapView(context: Context) : View(context) {
                     ty += e.y - lastY
                     lastX = e.x
                     lastY = e.y
+                    clampTranslation()
                     invalidate()
                 }
             }
