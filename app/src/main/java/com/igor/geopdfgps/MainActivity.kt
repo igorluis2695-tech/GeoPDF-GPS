@@ -307,8 +307,49 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val page = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(18),dp(18),dp(18)) }
         val files = folder.listFiles { f -> f.isFile && f.extension.equals("pdf",true) }?.sortedBy { it.name.lowercase(Locale.getDefault()) } ?: emptyList()
         page.addView(libraryHeader(folder.name, if(files.size==1) "1 mapa" else "${files.size} mapas", false))
+
+        val searchRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(2), dp(12), dp(2))
+            background = rounded(Color.rgb(24, 35, 30), 18f)
+        }
+        searchRow.addView(TextView(this).apply {
+            text = "⌕"; textSize = 28f; setTextColor(Color.rgb(205,215,208)); gravity = Gravity.CENTER
+            contentDescription = "Pesquisar mapas"
+        }, LinearLayout.LayoutParams(dp(42), dp(48)))
+        val searchInput = EditText(this).apply {
+            hint = "Pesquisar mapa..."
+            setHintTextColor(Color.rgb(145,160,151))
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            setSingleLine(true)
+            background = null
+            setPadding(dp(4),0,0,0)
+        }
+        searchRow.addView(searchInput, LinearLayout.LayoutParams(0, dp(48), 1f))
+        page.addView(searchRow, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(0, dp(4), 0, dp(8))
+        })
+
         val scroll=ScrollView(this); val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,dp(8),0,dp(20)) }
-        if(files.isEmpty()) list.addView(emptyLibraryView("Pasta vazia", "Toque em “+ Mapas” para selecionar vários GeoPDFs.")) else files.forEach { list.addView(mapCard(it)) }
+        fun renderMaps(query: String = "") {
+            list.removeAllViews()
+            distanceBindings.clear()
+            val q = query.trim().lowercase(Locale.getDefault())
+            val filtered = if (q.isBlank()) files else files.filter { it.nameWithoutExtension.lowercase(Locale.getDefault()).contains(q) }
+            when {
+                files.isEmpty() -> list.addView(emptyLibraryView("Pasta vazia", "Toque em “+ Mapas” para selecionar vários GeoPDFs."))
+                filtered.isEmpty() -> list.addView(emptyLibraryView("Nenhum mapa encontrado", "Tente pesquisar outro nome."))
+                else -> filtered.forEach { list.addView(mapCard(it)) }
+            }
+        }
+        renderMaps()
+        searchInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { renderMaps(s?.toString().orEmpty()) }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
         scroll.addView(list); page.addView(scroll,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f)); root.addView(page,FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT))
     }
 
